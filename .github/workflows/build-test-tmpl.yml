@@ -75,38 +75,38 @@ jobs:
           src/releases-catalog.ts
       if: inputs.generate-catalog == true
 
-    - name: If there is a new CMake version, create a Git commit for the PR
-      id: git-check
-      run: |
-        if ! git diff --exit-code .latest_cmake_version ; then
-          export CMAKE_NEW_VERSIONS=cmake-v$(cat .latest_cmake_version)
-        fi
-        if ! git diff --exit-code .latestrc_cmake_version ; then
-          export CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS} cmake-rc-v$(cat .latestrc_cmake_version)"
-        fi
-        if [[ -n "${CMAKE_NEW_VERSIONS}" ]]; then
-          # Get rid of blank space if any
-          CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS// /}"
-          CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS## }"
-          echo "CMAKE_NEW_VERSIONS=${CMAKE_NEW_VERSIONS}" >> "$GITHUB_ENV"
-          git add -u
-          git commit -m "New CMake version(s): $CMAKE_NEW_VERSIONS"
-          echo "createpr=true" >> $GITHUB_OUTPUT
-        else
-          echo "There is no new version of CMake."
-        fi
-      if: ${{ inputs.generate-catalog == true }}
+    # - name: If there is a new CMake version, create a Git commit for the PR
+    #   id: git-check
+    #   run: |
+    #     if ! git diff --exit-code .latest_cmake_version ; then
+    #       export CMAKE_NEW_VERSIONS=cmake-v$(cat .latest_cmake_version)
+    #     fi
+    #     if ! git diff --exit-code .latestrc_cmake_version ; then
+    #       export CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS} cmake-rc-v$(cat .latestrc_cmake_version)"
+    #     fi
+    #     if [[ -n "${CMAKE_NEW_VERSIONS}" ]]; then
+    #       # Get rid of blank space if any
+    #       CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS// /}"
+    #       CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS## }"
+    #       echo "CMAKE_NEW_VERSIONS=${CMAKE_NEW_VERSIONS}" >> "$GITHUB_ENV"
+    #       git add -u
+    #       git commit -m "New CMake version(s): $CMAKE_NEW_VERSIONS"
+    #       echo "createpr=true" >> $GITHUB_OUTPUT
+    #     else
+    #       echo "There is no new version of CMake."
+    #     fi
+    #   if: ${{ inputs.generate-catalog == true }}
 
-    - name: Create the PR for new CMake version(s)
-      uses: peter-evans/create-pull-request@v7
-      with:
-        title: '[Automated] Adding ${{ env.CMAKE_NEW_VERSIONS }}'
-        body: "Add to catalog new CMake version(s): ${{ env.CMAKE_NEW_VERSIONS }}"
-        draft: true
-        branch: automated-pr-cmake-${{ env.CMAKE_NEW_VERSIONS}}
-        base: main
-        add-paths: |
-            dist/*.js
-            .latest_cmake_version
-            .latestrc_cmake_version
-      if: ${{ (steps.git-check.outputs.createpr == 'true') }}
+    # - name: Create the PR for new CMake version(s)
+    #   uses: peter-evans/create-pull-request@v7
+    #   with:
+    #     title: '[Automated] Adding ${{ env.CMAKE_NEW_VERSIONS }}'
+    #     body: "Add to catalog new CMake version(s): ${{ env.CMAKE_NEW_VERSIONS }}"
+    #     draft: true
+    #     branch: automated-pr-cmake-${{ env.CMAKE_NEW_VERSIONS}}
+    #     base: main
+    #     add-paths: |
+    #         dist/*.js
+    #         .latest_cmake_version
+    #         .latestrc_cmake_version
+    #   if: ${{ (steps.git-check.outputs.createpr == 'true') }}
