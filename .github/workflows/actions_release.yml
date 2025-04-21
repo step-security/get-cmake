@@ -6,11 +6,6 @@ on:
       tag:
         description: "Tag for the release"
         required: true
-      # Uncomment if using yarn
-      # script:
-      #   description: "Specify the build script to run"
-      #   required: true
-      #   type: string
 
 permissions:
   contents: read
