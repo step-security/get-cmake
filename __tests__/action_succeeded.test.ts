@@ -1,6 +1,4 @@
-// Copyright (c) 2020, 2021, 2022, 2024 Luca Cappa
-
-// Released under the term specified in file LICENSE.txt
+// Released under the term specified in file LICENSE
 // SPDX short identifier: MIT
 
 import * as os from 'os';

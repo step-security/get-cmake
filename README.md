@@ -5,14 +5,12 @@
     - [If you want to use  **latest stable** you can use this one-liner:](#if-you-want-to-use--latest-stable-you-can-use-this-one-liner)
     - [If you want to **pin** the workflow to **specific range of versions** of CMake and Ninja:](#if-you-want-to-pin-the-workflow-to-specific-range-of-versions-of-cmake-and-ninja)
   - [Action reference: all input/output parameters](#action-reference-all-inputoutput-parameters)
-  - [Who is using `get-cmake`](#who-is-using-get-cmake)
 - [Developers information](#developers-information)
   - [Prerequisites](#prerequisites)
   - [Build and lint](#build-and-lint)
   - [Generate the catalog of CMake releases](#generate-the-catalog-of-cmake-releases)
   - [Packaging](#packaging)
   - [Testing](#testing)
-  - [Contributing](#contributing)
 - [License](#license)
 
 <br>
@@ -149,4 +147,4 @@ To build, pack and run all tests:
 # License
 All the content in this repository is licensed under the [MIT License](LICENSE).
 
-Copyright (c) 2020-2021-2022-2023-2024 Step Security
+Copyright (c) 2020-2021-2022-2023-2024-2025 Step Security

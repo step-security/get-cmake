@@ -1,6 +1,4 @@
-// Copyright (c) 2020-2021-2022-2023-2024 Luca Cappa
-// Released under the term specified in file LICENSE.txt
-
+// Released under the term specified in file LICENSE
 // SPDX short identifier: MIT
 
 import * as cache from '@actions/cache';
@@ -352,9 +350,7 @@ export class ToolsGetter {
 
 function forceExit(exitCode: number) {
   // work around for:
-  //  - https://github.com/lukka/get-cmake/issues/136
   //  - https://github.com/nodejs/node/issues/47228
-
   // Avoid this workaround when running mocked unit tests.
   if (process.env.JEST_WORKER_ID)
     return;
