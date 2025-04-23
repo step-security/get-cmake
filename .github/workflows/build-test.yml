@@ -32,7 +32,7 @@ jobs:
     if: false #Disable buildjet's arm based runners usage.
     uses: ./.github/workflows/build-test-tmpl.yml
     with:
-      runs-on: "['buildjet-2vcpu-ubuntu-2204-arm']"
+      runs-on: "['ubuntu-22.04-arm']"
       generate-catalog: false
     secrets:
       token:
@@ -60,7 +60,7 @@ jobs:
     uses: ./.github/workflows/functional-tests-tmpl.yml
     if: false #Disable buildjet's arm based runners usage.
     with:
-      runs-on: "['buildjet-2vcpu-ubuntu-2204-arm']"
+      runs-on: "['ubuntu-22.04-arm']"
       experimental: true
       versions: "[\"{'cmake':'','ninja':''}\",\
         \"{cmake:'3.22.6', 'ninja':'1.11.1'}\",\

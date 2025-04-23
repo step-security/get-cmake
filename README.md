@@ -44,13 +44,13 @@ Steps of `get-cmake`:
 ## Quickstart
 ### If you want to use  **latest stable** you can use this one-liner:
 ```yaml
-  # Option 1: using 'latest' branch, the most recent CMake and ninja are installed.
-    - uses: step-security/get-cmake@latest  # <--= Just this one-liner suffices.
+  # Option 1: using v4 tag, the most recent CMake and ninja are installed.
+    - uses: step-security/get-cmake@v4  # <--= Just this one-liner suffices.
 ```
 The local and cloud cache can be enabled or disabled, for example:
 ```yaml
     # Suited for self-hosted GH runners where the local cache wins over the cloud.
-    - uses: step-security/get-cmake@latest  
+    - uses: step-security/get-cmake@v4  
       with:
         useLocalCache: true         # <--= Use the local cache (default is 'false').
         useCloudCache: false        # <--= Ditch the cloud cache (default is 'true').
@@ -59,7 +59,7 @@ And there is a second option:
 ```yaml
   # Option 2: specify 'latest' or 'latestrc' in the input version arguments:
     - name: Get latest CMake and Ninja
-      uses: step-security/get-cmake@latest
+      uses: step-security/get-cmake@v4
       with:
         cmakeVersion: latestrc      # <--= optional, use the latest release candidate (notice the 'rc' suffix).
         ninjaVersion: latest        # <--= optional, use the latest release (non candidate).
@@ -70,13 +70,13 @@ And there is a second option:
 ### If you want to **pin** the workflow to **specific range of versions** of CMake and Ninja:
 ```yaml
   # Option 1: specify in a input parameter the desired version using ranges.
-  - uses: step-security/get-cmake@latest
+  - uses: step-security/get-cmake@v4
     with:
       cmakeVersion: "~3.25.0"  # <--= optional, use most recent 3.25.x version
       ninjaVersion: "^1.11.1"  # <--= optional, use most recent 1.x version
 
   # or using a specific version (no range)
-  - uses: step-security/get-cmake@latest
+  - uses: step-security/get-cmake@v4
     with:
       cmakeVersion: 3.25.2     # <--= optional, stick to exactly 3.25.2 version
       ninjaVersion: 1.11.1     # <--= optional, stick to exactly 1.11.1 version
@@ -85,8 +85,8 @@ or there is another option:
 ```yaml
   # Option 2: or you can use the Git 'tag' to select the version, and you can have a one-liner statement,
   # but note that you can only use one of the existing tags, create a PR to add the tag you need!
-  - name: Get specific version CMake, v3.26.0
-    uses: step-security/get-cmake@v3.26.0     # <- this one-liner is all you need.
+  - name: Get specific version CMake, v4.0.0
+    uses: step-security/get-cmake@v4.0.0     # <- this one-liner is all you need.
 ```
 <br>
 
@@ -147,4 +147,5 @@ To build, pack and run all tests:
 # License
 All the content in this repository is licensed under the [MIT License](LICENSE).
 
-Copyright (c) 2020-2021-2022-2023-2024-2025 Step Security
+Copyright (c) 2020-2021-2022-2023-2024 Luca Cappa
+Copyright (c) 2025 Step Security
