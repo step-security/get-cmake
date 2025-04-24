@@ -47,7 +47,7 @@
     "@actions/io": "^1.1.2",
     "@actions/tool-cache": "^2.0.1",
     "@octokit/core": "5.0.1",
-    "@octokit/plugin-paginate-rest": "^5.0.1",
+    "@octokit/plugin-paginate-rest": "^9.2.2",
     "@types/jest": "^29.2.0",
     "axios": "^1.8.4",
     "node-notifier": ">=8.0.1",
