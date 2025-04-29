@@ -16,7 +16,7 @@
     "generate-catalog": "npx jest --config=./jest.config-generate-catalog.js"
   },
   "devDependencies": {
-    "@octokit/plugin-rest-endpoint-methods": "10.4.1",
+    "@octokit/plugin-rest-endpoint-methods": "14.0.0",
     "@octokit/plugin-retry": "6.0.1",
     "@octokit/plugin-throttling": "^8.1.2",
     "@types/node": "^16.0.0",
