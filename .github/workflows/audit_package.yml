@@ -25,7 +25,7 @@ jobs:
     with:
       force: ${{ inputs.force || false }}
       base_branch: ${{ inputs.base_branch || 'main' }}
-      script: ${{ github.event.inputs.script || 'npm run pack' }}
+      script: ${{ inputs.script || 'npm run pack' }}
 
 permissions:
   contents: write
