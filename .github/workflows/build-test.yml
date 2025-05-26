@@ -12,7 +12,7 @@ jobs:
     uses: ./.github/workflows/build-test-tmpl.yml
     with:
       runs-on: "['macos-latest']"
-      generate-catalog: false
+      generate-catalog: true
     secrets:
       token:
         ${{ github.token }}
