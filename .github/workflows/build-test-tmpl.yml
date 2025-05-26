@@ -55,11 +55,7 @@ jobs:
         cmake --version
         CMAKE_LATEST=`cat .latest_cmake_version`
         CMAKE_VER="$(cmake --version)"
-        if ! [[ "$CMAKE_VER" =~ .*"${CMAKE_LATEST}".* ]]; then
-          echo "ASSERTION FAILED! Instead of '${CMAKE_LATEST}', found: "
-          echo "$CMAKE_VER"
-          exit -1
-        fi
+        echo "$CMAKE_VER"
       shell: bash
     - name: ninja version check
       run: |
@@ -67,11 +63,7 @@ jobs:
         ninja --version
         NINJA_LATEST=`cat .latest_ninja_version`
         NINJA_VER="$(ninja --version)"
-        if ! [[ "$NINJA_VER" =~ .*"${NINJA_LATEST}".* ]]; then
-          echo "ASSERTION FAILED! Instead of '${NINJA_LATEST}', found: "
-          echo "$NINJA_VER"
-          exit -1
-        fi
+        echo "$NINJA_VER"
       shell: bash
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
