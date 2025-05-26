@@ -47,7 +47,7 @@ jobs:
         \"{cmake:'3.22.6', 'ninja':'1.11.1'}\",\
         \"{'cmake':'3.25.0-rc4','ninja':'latest'}\",\
         \"{'cmake':'4.0.1','ninja':'~1.10.0'}\",\
-        \"{'cmake':'latestrc','ninja':'^1.11.0'}\",\
+        \"{'cmake':'4.0.0-rc5','ninja':'^1.11.0'}\",\
         \"{'cmake':'~3.25.0','ninja':''}\",\
         \"{'cmake':'^3.1.1','ninja':''}\",\
         \"{'cmake':'~3.0.0','ninja':''}\"]"
@@ -66,7 +66,7 @@ jobs:
         \"{cmake:'3.22.6', 'ninja':'1.11.1'}\",\
         \"{'cmake':'3.25.0-rc4','ninja':'latest'}\",\
         \"{'cmake':'4.0.1','ninja':'~1.10.0'}\",\
-        \"{'cmake':'latestrc','ninja':'^1.11.0'}\",\
+        \"{'cmake':'4.0.0-rc5','ninja':'^1.11.0'}\",\
         \"{'cmake':'~3.25.0','ninja':''}\",\
         \"{'cmake':'^3.1.1','ninja':''}\"]"
     secrets:
