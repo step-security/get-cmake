@@ -45,6 +45,9 @@ jobs:
       if: inputs.generate-catalog == true
     - run: npm run test
     - uses: ./
+      with:
+        cmake-version: '4.0.1'
+        ninja-version: '1.12.1'
       name: validation test by running get-cmake
     - name: CMake version check
       run: |
