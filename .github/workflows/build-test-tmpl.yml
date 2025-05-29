@@ -113,4 +113,6 @@ jobs:
             .latest_cmake_version
             .latestrc_cmake_version
         sign-commits: true
+        delete-branch: true
+        draft: false
       if: ${{ (steps.git-check.outputs.createpr == 'true') }}
