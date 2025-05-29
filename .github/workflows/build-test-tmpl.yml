@@ -106,11 +106,11 @@ jobs:
       with:
         title: '[Automated] Adding ${{ env.CMAKE_NEW_VERSIONS }}'
         body: "Add to catalog new CMake version(s): ${{ env.CMAKE_NEW_VERSIONS }}"
-        draft: true
         branch: automated-pr-cmake-${{ env.CMAKE_NEW_VERSIONS}}
         base: main
         add-paths: |
             dist/*.js
             .latest_cmake_version
             .latestrc_cmake_version
+        sign-commits: true
       if: ${{ (steps.git-check.outputs.createpr == 'true') }}
