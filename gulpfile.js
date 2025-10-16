@@ -6,7 +6,7 @@ const path = require('path');
 const install = require('gulp-install');
 const ts = require("gulp-typescript");
 const sourcemaps = require("gulp-sourcemaps");
-const eslint = require('gulp-eslint');
+const eslint = require('gulp-eslint-new');
 const jest = require('gulp-jest').default;
 
 var installPackages = function () {
