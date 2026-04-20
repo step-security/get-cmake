@@ -11,6 +11,13 @@ on:
         description: 'Script to run after audit fix'
         required: false
         default: 'npm run pack'
+      mode:
+        description: "Run mode: cherry-pick or verify"
+        required: false
+        default: "cherry-pick"
+
+  pull_request:
+    types: [opened, synchronize, labeled]
 
 permissions:
   contents: write
@@ -20,9 +27,11 @@ permissions:
 
 jobs:
   cherry-pick:
+    if: github.event_name == 'workflow_dispatch' || contains(fromJson(toJson(github.event.pull_request.labels)).*.name, 'review-required')
     uses: step-security/reusable-workflows/.github/workflows/auto_cherry_pick.yaml@v1
     with:
       original-owner: "lukka"
       repo-name: "get-cmake"
       base_branch: ${{ inputs.base_branch }}
       script: ${{ inputs.script || 'npm run pack' }}
+      mode: ${{ github.event_name == 'pull_request' && 'verify' || inputs.mode }}
