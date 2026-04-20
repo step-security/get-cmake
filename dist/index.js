@@ -2,21 +2,12 @@
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 34506:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 // Released under the term specified in file LICENSE
 // SPDX short identifier: MIT
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.main = exports.ToolsGetter = void 0;
 const cache = __nccwpck_require__(27799);
@@ -25,34 +16,61 @@ const io = __nccwpck_require__(47351);
 const tools = __nccwpck_require__(27784);
 const path = __nccwpck_require__(71017);
 const fs = __nccwpck_require__(73292);
+const fsSync = __nccwpck_require__(57147);
 const semver_1 = __nccwpck_require__(11383);
 const catalog = __nccwpck_require__(15284);
 const shared = __nccwpck_require__(26946);
 const utils_1 = __nccwpck_require__(10190);
 const axios_1 = __nccwpck_require__(88757);
-function validateSubscription() {
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-        const API_URL = `https://agent.api.stepsecurity.io/v1/github/${process.env.GITHUB_REPOSITORY}/actions/subscription`;
-        try {
-            yield axios_1.default.get(API_URL, { timeout: 3000 });
+async function validateSubscription() {
+    const eventPath = process.env.GITHUB_EVENT_PATH;
+    let repoPrivate;
+    if (eventPath && fsSync.existsSync(eventPath)) {
+        const eventData = JSON.parse(fsSync.readFileSync(eventPath, 'utf8'));
+        repoPrivate = eventData?.repository?.private;
+    }
+    const upstream = 'lukka/get-cmake';
+    const action = process.env.GITHUB_ACTION_REPOSITORY;
+    const docsUrl = 'https://docs.stepsecurity.io/actions/stepsecurity-maintained-actions';
+    core.info('');
+    core.info('\u001b[1;36mStepSecurity Maintained Action\u001b[0m');
+    core.info(`Secure drop-in replacement for ${upstream}`);
+    if (repoPrivate === false)
+        core.info('\u001b[32m\u2713 Free for public repositories\u001b[0m');
+    core.info(`\u001b[36mLearn more:\u001b[0m ${docsUrl}`);
+    core.info('');
+    if (repoPrivate === false)
+        return;
+    const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+    const body = { action: action || '' };
+    if (serverUrl !== 'https://github.com')
+        body.ghes_server = serverUrl;
+    try {
+        await axios_1.default.post(`https://agent.api.stepsecurity.io/v1/github/${process.env.GITHUB_REPOSITORY}/actions/maintained-actions-subscription`, body, { timeout: 3000 });
+    }
+    catch (error) {
+        if ((0, axios_1.isAxiosError)(error) && error.response?.status === 403) {
+            core.error(`\u001b[1;31mThis action requires a StepSecurity subscription for private repositories.\u001b[0m`);
+            core.error(`\u001b[31mLearn how to enable a subscription: ${docsUrl}\u001b[0m`);
+            process.exit(1);
         }
-        catch (error) {
-            if ((0, axios_1.isAxiosError)(error) && ((_a = error.response) === null || _a === void 0 ? void 0 : _a.status) === 403) {
-                core.error('Subscription is not valid. Reach out to support@stepsecurity.io');
-                process.exit(1);
-            }
-            else {
-                core.info('Timeout or API not reachable. Continuing to next step.');
-            }
-        }
-    });
+        core.info('Timeout or API not reachable. Continuing to next step.');
+    }
 }
 const extractFunction = {
     '.tar.gz': tools.extractTar,
     '.zip': tools.extractZip
 };
 class ToolsGetter {
+    cmakeOverride;
+    ninjaOverride;
+    useCloudCache;
+    useLocalCache;
+    static CMakeDefaultVersion = 'latest';
+    static NinjaDefaultVersion = 'latest';
+    static LocalCacheName = "cmakeninja";
+    requestedCMakeVersion;
+    requestedNinjaVersion;
     constructor(cmakeOverride, ninjaOverride, useCloudCache = true, useLocalCache = false) {
         this.cmakeOverride = cmakeOverride;
         this.ninjaOverride = ninjaOverride;
@@ -67,30 +85,28 @@ class ToolsGetter {
         core.info(`cmake version:${this.requestedCMakeVersion}`);
         core.info(`ninja version:${this.requestedNinjaVersion}`);
     }
-    run() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const targetArchPlat = shared.getArchitecturePlatform();
-            const cmakeVer = ToolsGetter.matchRange(catalog.cmakeCatalog, this.requestedCMakeVersion, "cmake");
-            if (!cmakeVer)
-                throw Error(`Cannot match CMake version:'${this.requestedCMakeVersion}' in the catalog.`);
-            const cmakePackages = catalog.cmakeCatalog[cmakeVer];
-            if (!cmakePackages)
-                throw Error(`Cannot find CMake version:'${this.requestedCMakeVersion}' in the catalog.`);
-            const cmakePackage = cmakePackages[targetArchPlat];
-            core.debug(`cmakePackages: ${JSON.stringify(cmakePackages)}`);
-            if (!cmakePackage)
-                throw Error(`Cannot find CMake version:'${this.requestedCMakeVersion}' in the catalog for the '${targetArchPlat}' platform.`);
-            const ninjaVer = ToolsGetter.matchRange(catalog.ninjaCatalog, this.requestedNinjaVersion, "ninja");
-            if (!ninjaVer)
-                throw Error(`Cannot match Ninja version:'${this.requestedNinjaVersion}' in the catalog.`);
-            const ninjaPackages = catalog.ninjaCatalog[ninjaVer];
-            if (!ninjaPackages)
-                throw Error(`Cannot find Ninja version:'${this.requestedNinjaVersion}' in the catalog.`);
-            const ninjaPackage = ninjaPackages[targetArchPlat];
-            if (!ninjaPackage)
-                throw Error(`Cannot find Ninja version:'${this.requestedNinjaVersion}' in the catalog for the '${targetArchPlat}' platform.`);
-            yield this.get(cmakePackage, ninjaPackage);
-        });
+    async run() {
+        const targetArchPlat = shared.getArchitecturePlatform();
+        const cmakeVer = ToolsGetter.matchRange(catalog.cmakeCatalog, this.requestedCMakeVersion, "cmake");
+        if (!cmakeVer)
+            throw Error(`Cannot match CMake version:'${this.requestedCMakeVersion}' in the catalog.`);
+        const cmakePackages = catalog.cmakeCatalog[cmakeVer];
+        if (!cmakePackages)
+            throw Error(`Cannot find CMake version:'${this.requestedCMakeVersion}' in the catalog.`);
+        const cmakePackage = cmakePackages[targetArchPlat];
+        core.debug(`cmakePackages: ${JSON.stringify(cmakePackages)}`);
+        if (!cmakePackage)
+            throw Error(`Cannot find CMake version:'${this.requestedCMakeVersion}' in the catalog for the '${targetArchPlat}' platform.`);
+        const ninjaVer = ToolsGetter.matchRange(catalog.ninjaCatalog, this.requestedNinjaVersion, "ninja");
+        if (!ninjaVer)
+            throw Error(`Cannot match Ninja version:'${this.requestedNinjaVersion}' in the catalog.`);
+        const ninjaPackages = catalog.ninjaCatalog[ninjaVer];
+        if (!ninjaPackages)
+            throw Error(`Cannot find Ninja version:'${this.requestedNinjaVersion}' in the catalog.`);
+        const ninjaPackage = ninjaPackages[targetArchPlat];
+        if (!ninjaPackage)
+            throw Error(`Cannot find Ninja version:'${this.requestedNinjaVersion}' in the catalog for the '${targetArchPlat}' platform.`);
+        await this.get(cmakePackage, ninjaPackage);
     }
     static matchRange(theCatalog, range, toolName) {
         core.debug(`matchRange(${theCatalog}, ${range}, ${toolName})<<`);
@@ -106,7 +122,7 @@ class ToolsGetter {
             return range;
         }
         catch (error) {
-            core.debug(error === null || error === void 0 ? void 0 : error.message);
+            core.debug(error?.message);
             // Try to use the range to find the version ...
             core.debug(`Collecting semvers list... `);
             const matches = [];
@@ -114,7 +130,7 @@ class ToolsGetter {
                 try {
                     matches.push(new semver_1.SemVer(release));
                 }
-                catch (_a) {
+                catch {
                     core.debug(`Skipping ${release}`);
                 }
             });
@@ -126,160 +142,153 @@ class ToolsGetter {
             return match.version;
         }
     }
-    get(cmakePackage, ninjaPackage) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let hashedKey, outPath;
-            let cloudCacheHitKey = undefined;
-            let localCacheHit = false;
-            let localPath = undefined;
+    async get(cmakePackage, ninjaPackage) {
+        let hashedKey, outPath;
+        let cloudCacheHitKey = undefined;
+        let localCacheHit = false;
+        let localPath = undefined;
+        try {
+            core.startGroup(`Computing cache key from the downloads' URLs`);
+            // Get an unique output directory name from the URL.
+            const inputHash = `${cmakePackage.url}${ninjaPackage.url}`;
+            hashedKey = (0, utils_1.hashCode)(inputHash);
+            core.info(`Cache key: '${hashedKey}'.`);
+            core.debug(`hash('${inputHash}') === '${hashedKey}'`);
+            outPath = this.getOutputPath(hashedKey.toString());
+            core.info(`Local install root: '${outPath}''.`);
+        }
+        finally {
+            core.endGroup();
+        }
+        if (this.useLocalCache) {
             try {
-                core.startGroup(`Computing cache key from the downloads' URLs`);
-                // Get an unique output directory name from the URL.
-                const inputHash = `${cmakePackage.url}${ninjaPackage.url}`;
-                hashedKey = (0, utils_1.hashCode)(inputHash);
-                core.info(`Cache key: '${hashedKey}'.`);
-                core.debug(`hash('${inputHash}') === '${hashedKey}'`);
-                outPath = this.getOutputPath(hashedKey.toString());
-                core.info(`Local install root: '${outPath}''.`);
+                core.startGroup(`Restoring from local GitHub runner cache using key '${hashedKey}'`);
+                localPath = tools.find(ToolsGetter.LocalCacheName, ToolsGetter.hashToFakeSemver(hashedKey), process.platform);
+                // Silly tool-cache API does return an empty string in case of cache miss.
+                localCacheHit = localPath ? true : false;
+                core.info(localCacheHit ? "Local cache hit." : "Local cache miss.");
             }
             finally {
                 core.endGroup();
             }
-            if (this.useLocalCache) {
+        }
+        if (!localCacheHit) {
+            if (this.useCloudCache) {
                 try {
-                    core.startGroup(`Restoring from local GitHub runner cache using key '${hashedKey}'`);
-                    localPath = tools.find(ToolsGetter.LocalCacheName, ToolsGetter.hashToFakeSemver(hashedKey), process.platform);
-                    // Silly tool-cache API does return an empty string in case of cache miss.
-                    localCacheHit = localPath ? true : false;
-                    core.info(localCacheHit ? "Local cache hit." : "Local cache miss.");
+                    core.startGroup(`Restoring from GitHub cloud cache using key '${hashedKey}' into '${outPath}'`);
+                    cloudCacheHitKey = await this.restoreCache(outPath, hashedKey);
+                    core.info(cloudCacheHitKey === undefined ? "Cloud cache miss." : "Cloud cache hit.");
                 }
                 finally {
                     core.endGroup();
                 }
             }
-            if (!localCacheHit) {
-                if (this.useCloudCache) {
-                    try {
-                        core.startGroup(`Restoring from GitHub cloud cache using key '${hashedKey}' into '${outPath}'`);
-                        cloudCacheHitKey = yield this.restoreCache(outPath, hashedKey);
-                        core.info(cloudCacheHitKey === undefined ? "Cloud cache miss." : "Cloud cache hit.");
-                    }
-                    finally {
-                        core.endGroup();
-                    }
-                }
-                if (cloudCacheHitKey === undefined) {
-                    yield this.downloadTools(cmakePackage, ninjaPackage, outPath);
-                }
-                localPath = outPath;
+            if (cloudCacheHitKey === undefined) {
+                await this.downloadTools(cmakePackage, ninjaPackage, outPath);
             }
-            if (!localPath) {
-                throw new Error(`Unexpectedly the directory of the tools is not defined`);
-            }
-            yield this.addToolsToPath(localPath, cmakePackage, ninjaPackage);
-            if (this.useCloudCache && cloudCacheHitKey === undefined) {
-                try {
-                    core.startGroup(`Saving to GitHub cloud cache using key '${hashedKey}'`);
-                    if (localCacheHit) {
-                        core.info("Skipping saving to cloud cache since there was local cache hit for the computed key.");
-                    }
-                    else if (cloudCacheHitKey === undefined) {
-                        yield this.saveCache([outPath], hashedKey);
-                        core.info(`Saved '${outPath}' to the GitHub cache service with key '${hashedKey}'.`);
-                    }
-                    else {
-                        core.info("Skipping saving to cloud cache since there was a cache hit for the computed key.");
-                    }
+            localPath = outPath;
+        }
+        if (!localPath) {
+            throw new Error(`Unexpectedly the directory of the tools is not defined`);
+        }
+        await this.addToolsToPath(localPath, cmakePackage, ninjaPackage);
+        if (this.useCloudCache && cloudCacheHitKey === undefined) {
+            try {
+                core.startGroup(`Saving to GitHub cloud cache using key '${hashedKey}'`);
+                if (localCacheHit) {
+                    core.info("Skipping saving to cloud cache since there was local cache hit for the computed key.");
                 }
-                finally {
-                    core.endGroup();
+                else if (cloudCacheHitKey === undefined) {
+                    await this.saveCache([outPath], hashedKey);
+                    core.info(`Saved '${outPath}' to the GitHub cache service with key '${hashedKey}'.`);
+                }
+                else {
+                    core.info("Skipping saving to cloud cache since there was a cache hit for the computed key.");
                 }
             }
-            if (this.useLocalCache && !localCacheHit && localPath) {
-                try {
-                    core.startGroup(`Saving to local cache using key '${hashedKey}' from '${outPath}'`);
-                    yield tools.cacheDir(localPath, ToolsGetter.LocalCacheName, ToolsGetter.hashToFakeSemver(hashedKey), process.platform);
-                    core.info(`Saved '${outPath}' to the local GitHub runner cache with key '${hashedKey}'.`);
-                }
-                finally {
-                    core.endGroup();
-                }
+            finally {
+                core.endGroup();
             }
-        });
+        }
+        if (this.useLocalCache && !localCacheHit && localPath) {
+            try {
+                core.startGroup(`Saving to local cache using key '${hashedKey}' from '${outPath}'`);
+                await tools.cacheDir(localPath, ToolsGetter.LocalCacheName, ToolsGetter.hashToFakeSemver(hashedKey), process.platform);
+                core.info(`Saved '${outPath}' to the local GitHub runner cache with key '${hashedKey}'.`);
+            }
+            finally {
+                core.endGroup();
+            }
+        }
     }
     isWindows() {
         return (process.platform === 'win32');
     }
     // Some ninja archives for macOS contain the ninja executable named after 
     // the package name rather than 'ninja'.
-    fixUpNinjaExeName(ninjaPath) {
-        var _a;
-        return __awaiter(this, void 0, void 0, function* () {
-            core.debug(`fixUpNinjaExeName(${ninjaPath})<<<`);
-            try {
-                const ninjaExeFileName = this.isWindows() ? 'ninja.exe' : 'ninja';
-                const files = yield fs.readdir(ninjaPath);
-                for (const file of files) {
-                    core.debug(`Processing: '${file}'.`);
-                    if (file.toLowerCase() !== ninjaExeFileName && file.toLowerCase().startsWith('ninja')) {
-                        core.debug(`Renaming: '${file}'.`);
-                        // If not an executable, skip it
-                        const ninjaFullPath = path.join(ninjaPath, file);
-                        try {
-                            yield fs.access(ninjaFullPath, fs.constants.X_OK);
-                        }
-                        catch (_b) {
-                            continue;
-                        }
-                        ;
-                        const ninjaExeFullPath = path.join(ninjaPath, ninjaExeFileName);
-                        yield fs.rename(ninjaFullPath, ninjaExeFullPath);
-                        core.debug(`Renamed '${ninjaFullPath}' to '${ninjaExeFullPath}'.`);
-                        return;
+    async fixUpNinjaExeName(ninjaPath) {
+        core.debug(`fixUpNinjaExeName(${ninjaPath})<<<`);
+        try {
+            const ninjaExeFileName = this.isWindows() ? 'ninja.exe' : 'ninja';
+            const files = await fs.readdir(ninjaPath);
+            for (const file of files) {
+                core.debug(`Processing: '${file}'.`);
+                if (file.toLowerCase() !== ninjaExeFileName && file.toLowerCase().startsWith('ninja')) {
+                    core.debug(`Renaming: '${file}'.`);
+                    // If not an executable, skip it
+                    const ninjaFullPath = path.join(ninjaPath, file);
+                    try {
+                        await fs.access(ninjaFullPath, fs.constants.X_OK);
                     }
+                    catch {
+                        continue;
+                    }
+                    ;
+                    const ninjaExeFullPath = path.join(ninjaPath, ninjaExeFileName);
+                    await fs.rename(ninjaFullPath, ninjaExeFullPath);
+                    core.debug(`Renamed '${ninjaFullPath}' to '${ninjaExeFullPath}'.`);
+                    return;
                 }
-                core.debug(`No rename occurred.`);
             }
-            catch (err) {
-                const error = err;
-                core.warning((_a = `Error while trying to fix up ninja executable name at '${ninjaPath}': ` +
-                    (err === null || err === void 0 ? void 0 : err.message)) !== null && _a !== void 0 ? _a : "unknown error");
-            }
-            core.debug(`fixUpNinjaExeName(${ninjaPath})>>>`);
-        });
+            core.debug(`No rename occurred.`);
+        }
+        catch (err) {
+            const error = err;
+            core.warning(`Error while trying to fix up ninja executable name at '${ninjaPath}': ` +
+                err?.message ?? "unknown error");
+        }
+        core.debug(`fixUpNinjaExeName(${ninjaPath})>>>`);
     }
-    addToolsToPath(outPath, cmakePackage, ninjaPackage) {
-        return __awaiter(this, void 0, void 0, function* () {
+    async addToolsToPath(outPath, cmakePackage, ninjaPackage) {
+        try {
+            if (!cmakePackage.fileName) {
+                throw new Error("The file name of the CMake archive is required but it is missing!");
+            }
+            if (!ninjaPackage.fileName) {
+                throw new Error("The file name of the Ninja archive is required but it is missing!");
+            }
+            core.startGroup(`Add CMake and Ninja to PATH`);
+            const cmakePath = path.join(outPath, cmakePackage.fileName.replace(cmakePackage.dropSuffix, ''), cmakePackage.binPath);
+            const ninjaPath = path.join(outPath, ninjaPackage.fileName.replace(ninjaPackage.dropSuffix, ''));
+            core.info(`CMake path: '${cmakePath}'`);
+            core.addPath(cmakePath);
+            core.info(`Ninja path: '${ninjaPath}'`);
+            core.addPath(ninjaPath);
+            await this.fixUpNinjaExeName(ninjaPath);
             try {
-                if (!cmakePackage.fileName) {
-                    throw new Error("The file name of the CMake archive is required but it is missing!");
-                }
-                if (!ninjaPackage.fileName) {
-                    throw new Error("The file name of the Ninja archive is required but it is missing!");
-                }
-                core.startGroup(`Add CMake and Ninja to PATH`);
-                const cmakePath = path.join(outPath, cmakePackage.fileName.replace(cmakePackage.dropSuffix, ''), cmakePackage.binPath);
-                const ninjaPath = path.join(outPath, ninjaPackage.fileName.replace(ninjaPackage.dropSuffix, ''));
-                core.info(`CMake path: '${cmakePath}'`);
-                core.addPath(cmakePath);
-                core.info(`Ninja path: '${ninjaPath}'`);
-                core.addPath(ninjaPath);
-                yield this.fixUpNinjaExeName(ninjaPath);
-                try {
-                    core.startGroup(`Validating the installed CMake and Ninja`);
-                    const cmakeWhichPath = yield io.which('cmake', true);
-                    const ninjaWhichPath = yield io.which('ninja', true);
-                    core.info(`CMake actual path is: '${cmakeWhichPath}'`);
-                    core.info(`Ninja actual path is: '${ninjaWhichPath}'`);
-                }
-                finally {
-                    core.endGroup();
-                }
+                core.startGroup(`Validating the installed CMake and Ninja`);
+                const cmakeWhichPath = await io.which('cmake', true);
+                const ninjaWhichPath = await io.which('ninja', true);
+                core.info(`CMake actual path is: '${cmakeWhichPath}'`);
+                core.info(`Ninja actual path is: '${ninjaWhichPath}'`);
             }
             finally {
                 core.endGroup();
             }
-        });
+        }
+        finally {
+            core.endGroup();
+        }
     }
     getOutputPath(subDir) {
         if (!process.env.RUNNER_TEMP)
@@ -287,57 +296,51 @@ class ToolsGetter {
         return path.join(process.env.RUNNER_TEMP, subDir);
         ;
     }
-    saveCache(paths, key) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                return yield cache.saveCache(paths, key.toString());
+    async saveCache(paths, key) {
+        try {
+            return await cache.saveCache(paths, key.toString());
+        }
+        catch (error) {
+            if (error.name === cache.ValidationError.name) {
+                throw error;
             }
-            catch (error) {
-                if (error.name === cache.ValidationError.name) {
-                    throw error;
-                }
-                else if (error.name === cache.ReserveCacheError.name) {
-                    core.info(error.message);
-                }
-                else {
-                    core.warning(error.message);
-                }
+            else if (error.name === cache.ReserveCacheError.name) {
+                core.info(error.message);
             }
-        });
+            else {
+                core.warning(error.message);
+            }
+        }
     }
     restoreCache(outPath, key) {
         return cache.restoreCache([outPath], key.toString());
     }
-    extract(archiveSuffix, downloaded, outputPath) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield extractFunction[archiveSuffix](downloaded, outputPath);
-            }
-            catch (exception) {
-                // Fix up the downloaded archive extension for https://github.com/actions/toolkit/issues/1179
-                if (this.isWindows()) {
-                    const zipExtension = ".zip";
-                    if (path.extname(downloaded) !== zipExtension) {
-                        const downloadedZip = downloaded + zipExtension;
-                        yield fs.rename(downloaded, downloadedZip);
-                        return yield extractFunction[archiveSuffix](downloadedZip, outputPath);
-                    }
+    async extract(archiveSuffix, downloaded, outputPath) {
+        try {
+            await extractFunction[archiveSuffix](downloaded, outputPath);
+        }
+        catch (exception) {
+            // Fix up the downloaded archive extension for https://github.com/actions/toolkit/issues/1179
+            if (this.isWindows()) {
+                const zipExtension = ".zip";
+                if (path.extname(downloaded) !== zipExtension) {
+                    const downloadedZip = downloaded + zipExtension;
+                    await fs.rename(downloaded, downloadedZip);
+                    return await extractFunction[archiveSuffix](downloadedZip, outputPath);
                 }
-                throw exception;
             }
-            return downloaded;
-        });
+            throw exception;
+        }
+        return downloaded;
     }
-    downloadTools(cmakePackage, ninjaPackage, outputPath) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield core.group("Downloading and extracting CMake", () => __awaiter(this, void 0, void 0, function* () {
-                const downloaded = yield tools.downloadTool(cmakePackage.url);
-                yield this.extract(cmakePackage.dropSuffix, downloaded, outputPath);
-            }));
-            yield core.group("Downloading and extracting Ninja", () => __awaiter(this, void 0, void 0, function* () {
-                const downloaded = yield tools.downloadTool(ninjaPackage.url);
-                yield this.extract(ToolsGetter.getArchiveExtension(ninjaPackage.fileName), downloaded, outputPath);
-            }));
+    async downloadTools(cmakePackage, ninjaPackage, outputPath) {
+        await core.group("Downloading and extracting CMake", async () => {
+            const downloaded = await tools.downloadTool(cmakePackage.url);
+            await this.extract(cmakePackage.dropSuffix, downloaded, outputPath);
+        });
+        await core.group("Downloading and extracting Ninja", async () => {
+            const downloaded = await tools.downloadTool(ninjaPackage.url);
+            await this.extract(ToolsGetter.getArchiveExtension(ninjaPackage.fileName), downloaded, outputPath);
         });
     }
     static getArchiveExtension(archivePath) {
@@ -363,9 +366,6 @@ class ToolsGetter {
     }
 }
 exports.ToolsGetter = ToolsGetter;
-ToolsGetter.CMakeDefaultVersion = 'latest';
-ToolsGetter.NinjaDefaultVersion = 'latest';
-ToolsGetter.LocalCacheName = "cmakeninja";
 function forceExit(exitCode) {
     // work around for:
     //  - https://github.com/nodejs/node/issues/47228
@@ -374,27 +374,25 @@ function forceExit(exitCode) {
         return;
     process.exit(exitCode);
 }
-function main() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            yield validateSubscription();
-            const cmakeGetter = new ToolsGetter(core.getInput('cmakeVersion'), core.getInput('ninjaVersion'), core.getBooleanInput('useCloudCache'), core.getBooleanInput('useLocalCache'));
-            yield cmakeGetter.run();
-            core.info('get-cmake action execution succeeded');
-            process.exitCode = 0;
-            forceExit(0);
+async function main() {
+    try {
+        await validateSubscription();
+        const cmakeGetter = new ToolsGetter(core.getInput('cmakeVersion'), core.getInput('ninjaVersion'), core.getBooleanInput('useCloudCache'), core.getBooleanInput('useLocalCache'));
+        await cmakeGetter.run();
+        core.info('get-cmake action execution succeeded');
+        process.exitCode = 0;
+        forceExit(0);
+    }
+    catch (err) {
+        const error = err;
+        if (error?.stack) {
+            core.debug(error.stack);
         }
-        catch (err) {
-            const error = err;
-            if (error === null || error === void 0 ? void 0 : error.stack) {
-                core.debug(error.stack);
-            }
-            const errorAsString = (err !== null && err !== void 0 ? err : "undefined error").toString();
-            core.setFailed(`get-cmake action execution failed: '${errorAsString}'`);
-            process.exitCode = -1000;
-            forceExit(-1000);
-        }
-    });
+        const errorAsString = (err ?? "undefined error").toString();
+        core.setFailed(`get-cmake action execution failed: '${errorAsString}'`);
+        process.exitCode = -1000;
+        forceExit(-1000);
+    }
 }
 exports.main = main;
 
@@ -446,134 +444,140 @@ exports.getArchitecturePlatform = getArchitecturePlatform;
 exports.ReleasesCatalogFileName = "releases-catalog.ts";
 ;
 class NinjaFilters {
+    static linuxArmFilters = [{
+            binPath: '',
+            dropSuffix: ".tar.gz",
+            suffix: "aarch64-linux-gnu.tar.gz",
+            platform: linuxArmPlatform,
+        }];
+    static linuxFilters = [{
+            binPath: '',
+            dropSuffix: ".tar.gz",
+            suffix: "x86_64-linux-gnu.tar.gz",
+            platform: linuxX64Platform,
+        }];
+    static windowsFilters = [{
+            binPath: '',
+            dropSuffix: ".zip",
+            suffix: "x86_64-pc-windows-msvc.zip",
+            platform: windowsPlatform,
+        }];
+    static windowsArmFilters = [{
+            binPath: '',
+            dropSuffix: ".zip",
+            suffix: "arm64-pc-windows-msvc.zip",
+            platform: windowsArmPlatform,
+        }];
+    static macosFilters = [{
+            binPath: "",
+            dropSuffix: '.tar.gz',
+            suffix: "universal-apple-darwin.tar.gz",
+            platform: macosPlatform,
+        }, {
+            binPath: "",
+            dropSuffix: 'ninja-linux-aarch64.zip',
+            suffix: "ninja-linux-aarch64.zip",
+            platform: linuxArmPlatform,
+        }, {
+            binPath: "",
+            dropSuffix: 'ninja-linux.zip',
+            suffix: "ninja-linux.zip",
+            platform: linuxX64Platform,
+        }, {
+            binPath: "",
+            dropSuffix: 'ninja-win.zip',
+            suffix: "ninja-win.zip",
+            platform: windowsPlatform,
+        }, {
+            binPath: "",
+            dropSuffix: 'ninja-winarm64.zip',
+            suffix: "ninja-winarm64.zip",
+            platform: windowsArmPlatform,
+        }, {
+            binPath: "",
+            dropSuffix: 'ninja-mac.zip',
+            suffix: "ninja-mac.zip",
+            platform: macosPlatform,
+        }];
+    static allFilters = [...NinjaFilters.linuxFilters, ...NinjaFilters.macosFilters, ...NinjaFilters.windowsFilters,
+        ...NinjaFilters.linuxArmFilters, ...NinjaFilters.windowsArmFilters];
 }
 exports.NinjaFilters = NinjaFilters;
-NinjaFilters.linuxArmFilters = [{
-        binPath: '',
-        dropSuffix: ".tar.gz",
-        suffix: "aarch64-linux-gnu.tar.gz",
-        platform: linuxArmPlatform,
-    }];
-NinjaFilters.linuxFilters = [{
-        binPath: '',
-        dropSuffix: ".tar.gz",
-        suffix: "x86_64-linux-gnu.tar.gz",
-        platform: linuxX64Platform,
-    }];
-NinjaFilters.windowsFilters = [{
-        binPath: '',
-        dropSuffix: ".zip",
-        suffix: "x86_64-pc-windows-msvc.zip",
-        platform: windowsPlatform,
-    }];
-NinjaFilters.windowsArmFilters = [{
-        binPath: '',
-        dropSuffix: ".zip",
-        suffix: "arm64-pc-windows-msvc.zip",
-        platform: windowsArmPlatform,
-    }];
-NinjaFilters.macosFilters = [{
-        binPath: "",
-        dropSuffix: '.tar.gz',
-        suffix: "universal-apple-darwin.tar.gz",
-        platform: macosPlatform,
-    }, {
-        binPath: "",
-        dropSuffix: 'ninja-linux-aarch64.zip',
-        suffix: "ninja-linux-aarch64.zip",
-        platform: linuxArmPlatform,
-    }, {
-        binPath: "",
-        dropSuffix: 'ninja-linux.zip',
-        suffix: "ninja-linux.zip",
-        platform: linuxX64Platform,
-    }, {
-        binPath: "",
-        dropSuffix: 'ninja-win.zip',
-        suffix: "ninja-win.zip",
-        platform: windowsPlatform,
-    }, {
-        binPath: "",
-        dropSuffix: 'ninja-winarm64.zip',
-        suffix: "ninja-winarm64.zip",
-        platform: windowsArmPlatform,
-    }, {
-        binPath: "",
-        dropSuffix: 'ninja-mac.zip',
-        suffix: "ninja-mac.zip",
-        platform: macosPlatform,
-    }];
-NinjaFilters.allFilters = [...NinjaFilters.linuxFilters, ...NinjaFilters.macosFilters, ...NinjaFilters.windowsFilters,
-    ...NinjaFilters.linuxArmFilters, ...NinjaFilters.windowsArmFilters];
 class CMakeFilters {
+    static linuxArmFilters = [{
+            binPath: 'bin/',
+            dropSuffix: ".tar.gz",
+            suffix: "linux-aarch64.tar.gz",
+            platform: linuxArmPlatform,
+        }];
+    static linuxFilters = [{
+            binPath: 'bin/',
+            dropSuffix: ".tar.gz",
+            suffix: "linux-x86_64.tar.gz",
+            platform: linuxX64Platform,
+        }, {
+            binPath: 'bin/',
+            dropSuffix: ".tar.gz",
+            suffix: "Linux-i386.tar.gz",
+            platform: linuxX86Platform,
+        }];
+    static windowsFilters = [
+        {
+            binPath: 'bin/',
+            dropSuffix: ".zip",
+            suffix: "windows-arm64.zip",
+            platform: windowsArmPlatform,
+        }, {
+            binPath: 'bin/',
+            dropSuffix: ".zip",
+            suffix: "windows-x86_64.zip",
+            platform: windowsPlatform,
+        }, {
+            binPath: 'bin/',
+            dropSuffix: ".zip",
+            suffix: "win64-x64.zip",
+            platform: windowsPlatform,
+        }, {
+            binPath: 'bin/',
+            dropSuffix: ".zip",
+            suffix: "win32-x86.zip",
+            platform: windowsPlatform,
+        }
+    ];
+    static macosFilters = [{
+            binPath: "CMake.app/Contents/bin/",
+            dropSuffix: '.tar.gz',
+            suffix: "macos-universal.tar.gz",
+            platform: macosPlatform,
+        }, {
+            binPath: "CMake.app/Contents/bin/",
+            dropSuffix: '.tar.gz',
+            suffix: "Darwin-x86_64.tar.gz",
+            platform: macosPlatform,
+        }, {
+            binPath: "CMake.app/Contents/bin/",
+            dropSuffix: '.tar.gz',
+            suffix: "Darwin64-universal.tar.gz",
+            platform: macosPlatform,
+        }];
+    static allFilters = [...CMakeFilters.linuxFilters, ...CMakeFilters.macosFilters, ...CMakeFilters.windowsFilters,
+        ...CMakeFilters.linuxArmFilters];
 }
 exports.CMakeFilters = CMakeFilters;
-CMakeFilters.linuxArmFilters = [{
-        binPath: 'bin/',
-        dropSuffix: ".tar.gz",
-        suffix: "linux-aarch64.tar.gz",
-        platform: linuxArmPlatform,
-    }];
-CMakeFilters.linuxFilters = [{
-        binPath: 'bin/',
-        dropSuffix: ".tar.gz",
-        suffix: "linux-x86_64.tar.gz",
-        platform: linuxX64Platform,
-    }, {
-        binPath: 'bin/',
-        dropSuffix: ".tar.gz",
-        suffix: "Linux-i386.tar.gz",
-        platform: linuxX86Platform,
-    }];
-CMakeFilters.windowsFilters = [
-    {
-        binPath: 'bin/',
-        dropSuffix: ".zip",
-        suffix: "windows-arm64.zip",
-        platform: windowsArmPlatform,
-    }, {
-        binPath: 'bin/',
-        dropSuffix: ".zip",
-        suffix: "windows-x86_64.zip",
-        platform: windowsPlatform,
-    }, {
-        binPath: 'bin/',
-        dropSuffix: ".zip",
-        suffix: "win64-x64.zip",
-        platform: windowsPlatform,
-    }, {
-        binPath: 'bin/',
-        dropSuffix: ".zip",
-        suffix: "win32-x86.zip",
-        platform: windowsPlatform,
-    }
-];
-CMakeFilters.macosFilters = [{
-        binPath: "CMake.app/Contents/bin/",
-        dropSuffix: '.tar.gz',
-        suffix: "macos-universal.tar.gz",
-        platform: macosPlatform,
-    }, {
-        binPath: "CMake.app/Contents/bin/",
-        dropSuffix: '.tar.gz',
-        suffix: "Darwin-x86_64.tar.gz",
-        platform: macosPlatform,
-    }, {
-        binPath: "CMake.app/Contents/bin/",
-        dropSuffix: '.tar.gz',
-        suffix: "Darwin64-universal.tar.gz",
-        platform: macosPlatform,
-    }];
-CMakeFilters.allFilters = [...CMakeFilters.linuxFilters, ...CMakeFilters.macosFilters, ...CMakeFilters.windowsFilters,
-    ...CMakeFilters.linuxArmFilters];
 class ReleasesCollector {
+    map;
+    mostRecentReleases;
+    filters;
+    static versionSelectors = [
+        { releaseKey: "latest", prereleaseAccepted: false },
+        { releaseKey: "latestrc", prereleaseAccepted: true }
+    ];
     constructor(map, mostRecentReleases, filters) {
         this.map = map;
         this.mostRecentReleases = mostRecentReleases;
         this.filters = filters;
     }
     track(assets) {
-        var _a, _b, _c, _d, _e;
         try {
             let releaseHit;
             for (const asset of assets) {
@@ -590,22 +594,22 @@ class ReleasesCollector {
                             };
                             if (version) {
                                 const currentVersion = { mostRecentVersion: version };
-                                (_a = this.map[version.version]) !== null && _a !== void 0 ? _a : (this.map[version.version] = {});
+                                this.map[version.version] ?? (this.map[version.version] = {});
                                 this.map[version.version][filter.platform] = release;
                                 releaseHit = true;
                                 // Track the latest releases.
                                 for (const key of ReleasesCollector.versionSelectors) {
                                     // This code makes little sense, anything better is welcome!
                                     const v = this.mostRecentReleases.get(key.releaseKey);
-                                    v !== null && v !== void 0 ? v : (this.mostRecentReleases.set(key.releaseKey, new Map()));
-                                    const latest = (_b = this.mostRecentReleases.get(key.releaseKey)) === null || _b === void 0 ? void 0 : _b.get(filter.platform);
-                                    const isCurrentVersionPrerelease = (((_d = (_c = version.prerelease) === null || _c === void 0 ? void 0 : _c.length) !== null && _d !== void 0 ? _d : 0) > 0) ? true : false;
+                                    v ?? (this.mostRecentReleases.set(key.releaseKey, new Map()));
+                                    const latest = this.mostRecentReleases.get(key.releaseKey)?.get(filter.platform);
+                                    const isCurrentVersionPrerelease = ((version.prerelease?.length ?? 0) > 0) ? true : false;
                                     if ((key.prereleaseAccepted === isCurrentVersionPrerelease) &&
                                         (!latest || (latest.mostRecentVersion && semver.compare(version, latest.mostRecentVersion) >= 0))) {
-                                        (_e = this.mostRecentReleases.get(key.releaseKey)) === null || _e === void 0 ? void 0 : _e.set(filter.platform, currentVersion);
+                                        this.mostRecentReleases.get(key.releaseKey)?.set(filter.platform, currentVersion);
                                         // Ensure existence of the instance for the given key.
                                         let v = this.map[key.releaseKey];
-                                        v !== null && v !== void 0 ? v : (v = (this.map[key.releaseKey] = {}));
+                                        v ?? (v = (this.map[key.releaseKey] = {}));
                                         v[filter.platform] = this.map[currentVersion.mostRecentVersion.version][filter.platform];
                                     }
                                 }
@@ -629,10 +633,6 @@ class ReleasesCollector {
     }
 }
 exports.ReleasesCollector = ReleasesCollector;
-ReleasesCollector.versionSelectors = [
-    { releaseKey: "latest", prereleaseAccepted: false },
-    { releaseKey: "latestrc", prereleaseAccepted: true }
-];
 
 //# sourceMappingURL=releases-collector.js.map
 
