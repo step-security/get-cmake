@@ -1,3 +1,5 @@
+[![StepSecurity Maintained Action](https://raw.githubusercontent.com/step-security/maintained-actions-assets/main/assets/maintained-action-banner.png)](https://docs.stepsecurity.io/actions/stepsecurity-maintained-actions)
+
 # get-cmake
 
 - [The **get-cmake** action installs as fast as possible your desired versions of CMake and Ninja](#the-get-cmake-action-installs-as-fast-as-possible-your-desired-versions-of-cmake-and-ninja)
