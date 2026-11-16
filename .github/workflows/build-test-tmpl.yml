@@ -17,6 +17,11 @@ jobs:
   build_and_test:
     name: '${{ matrix.os }}: build and test'
     runs-on: ${{ matrix.os }}
+    # The token this job receives is granted by the caller, in 'build-test.yml':
+    # this workflow is invoked once with 'generate-catalog: true' and twice with
+    # 'false', and only the former needs to write. Since a job cannot vary its
+    # 'permissions' according to an input, declaring the grant here would hand the
+    # write scopes to the ordinary build and test invocations too.
     strategy:
       fail-fast: false
       matrix:
@@ -73,33 +78,48 @@ jobs:
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: catalog
+        # The marker files are hidden, and upload-artifact drops hidden files unless
+        # told otherwise: without this the artifact would carry the catalog alone, and
+        # the downstream jobs would validate the freshly installed CMake and Ninja
+        # against the stale marker files committed in the branch being built.
+        include-hidden-files: true
         path: |
           .latest_ninja_version
           .latest_cmake_version
+          .latestrc_cmake_version
           src/releases-catalog.ts
       if: inputs.generate-catalog == true
 
-    - name: If there is a new CMake version, create a Git commit for the PR
+    - name: If there is a new CMake or Ninja version, create a Git commit for the PR
       id: git-check
       run: |
-        if ! git diff --exit-code .latest_cmake_version ; then
-          export CMAKE_NEW_VERSIONS=cmake-v$(cat .latest_cmake_version)
+        # Compare the freshly generated versions against 'main', the branch the
+        # automated pull request targets, and not against the checked out ref: a
+        # branch forked before the last version bump still carries the previous
+        # version, hence it would look like it introduces a new one and would spawn
+        # a duplicate of an already merged automated pull request.
+        git fetch --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+        NEW_VERSIONS=()
+        if ! git diff --exit-code origin/main -- .latest_cmake_version ; then
+          NEW_VERSIONS+=("cmake-v$(cat .latest_cmake_version)")
         fi
-        if ! git diff --exit-code .latestrc_cmake_version ; then
-          export CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS} cmake-rc-v$(cat .latestrc_cmake_version)"
+        if ! git diff --exit-code origin/main -- .latestrc_cmake_version ; then
+          NEW_VERSIONS+=("cmake-rc-v$(cat .latestrc_cmake_version)")
         fi
-        if [[ -n "${CMAKE_NEW_VERSIONS}" ]]; then
-          # Get rid of blank space if any
-          CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS// /}"
-          CMAKE_NEW_VERSIONS="${CMAKE_NEW_VERSIONS## }"
-          echo "CMAKE_NEW_VERSIONS=${CMAKE_NEW_VERSIONS}" >> "$GITHUB_ENV"
+        if ! git diff --exit-code origin/main -- .latest_ninja_version ; then
+          NEW_VERSIONS+=("ninja-v$(cat .latest_ninja_version)")
+        fi
+        if (( ${#NEW_VERSIONS[@]} )); then
+          NEW_VERSIONS_TEXT=$(IFS=,; echo "${NEW_VERSIONS[*]}")
+          echo "NEW_VERSIONS=${NEW_VERSIONS_TEXT}" >> "$GITHUB_ENV"
           git add -u
-          git commit -m "New CMake version(s): $CMAKE_NEW_VERSIONS"
+          git commit -m "New tool version(s): $NEW_VERSIONS_TEXT"
           echo "createpr=true" >> $GITHUB_OUTPUT
         else
-          echo "There is no new version of CMake."
+          echo "There is no new version of CMake or Ninja."
         fi
-      if: ${{ inputs.generate-catalog == true }}
+      shell: bash
+      if: ${{ inputs.generate-catalog == true && github.ref == 'refs/heads/main' }}
 
     - name: Create the PR for new CMake version(s)
       uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
@@ -115,4 +135,6 @@ jobs:
         sign-commits: true
         delete-branch: true
         draft: false
+            .latest_ninja_version
+            src/releases-catalog.ts
       if: ${{ (steps.git-check.outputs.createpr == 'true') }}

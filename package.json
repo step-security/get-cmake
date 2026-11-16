@@ -1,5 +1,8 @@
 {
-  "name": "get-cmake-action",
+  "name": "@step-security/get-cmake-action",
+  "private": true,
+  "author": "step-security",
+  "publisher": "step-security",
   "version": "0.0.1",
   "description": "GitHub action to get CMake and ninja installed and cached on the GitHub runner.",
   "repository": {
@@ -45,8 +48,16 @@
     "@octokit/core": "5.0.1",
     "@octokit/plugin-paginate-rest": "^9.2.2",
     "@types/jest": "^29.2.0",
-    "axios": "^1.8.4",
+    "axios": "^1.20.0",
     "node-notifier": ">=8.0.1",
     "semver": "^7.5.2"
+  },
+  "homepage": "https://github.com/step-security/get-cmake#readme",
+  "bugs": {
+    "url": "https://github.com/step-security/get-cmake/issues"
+  },
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
   }
 }

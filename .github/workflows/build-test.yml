@@ -8,7 +8,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  verify_dist:
+    name: 'Verify that dist/ is up to date'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+      - run: npm ci
+      - run: npm run pack
+      - name: Assert that dist/ matches the sources
+        run: |
+          if ! git diff --exit-code -- dist/ ; then
+            echo "ASSERTION FAILED! The content of 'dist/' does not match the sources: "
+            echo "run 'npm run pack' and commit the updated 'dist/index.js'."
+            exit 1
+          fi
+        shell: bash
+
   generate_catalog_build_and_test:
+    # This is the only invocation that writes: it pushes the branch holding the
+    # refreshed catalog and opens the automated pull request for it. Every scope
+    # left out of this block is dropped to 'none'.
+    permissions:
+      contents: write
+      pull-requests: write
     uses: ./.github/workflows/build-test-tmpl.yml
     with:
       runs-on: "['macos-latest']"
@@ -19,6 +44,10 @@ jobs:
 
   build_and_test:
     needs: generate_catalog_build_and_test
+    # These invocations only build and test the action: reading the sources is all
+    # the token is needed for.
+    permissions:
+      contents: read
     uses: ./.github/workflows/build-test-tmpl.yml
     with:
       runs-on: "['windows-latest', 'ubuntu-latest']"
@@ -30,6 +59,8 @@ jobs:
   build_and_test_arm:
     needs: generate_catalog_build_and_test
     if: false #Disable buildjet's arm based runners usage.
+    permissions:
+      contents: read
     uses: ./.github/workflows/build-test-tmpl.yml
     with:
       runs-on: "['ubuntu-22.04-arm']"

@@ -8,10 +8,11 @@ import * as tools from '@actions/tool-cache';
 import * as path from 'path';
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
+import * as fsSync from 'fs'
+import * as crypto from 'crypto';
 import { SemVer, maxSatisfying } from 'semver';
 import * as catalog from './releases-catalog'
 import * as shared from './releases-collector'
-import { hashCode } from './utils'
 import axios, {isAxiosError} from 'axios'
 
 async function validateSubscription(): Promise<void> {
@@ -69,7 +70,19 @@ const extractFunction: { [key: string]: { (url: string, outputPath: string): Pro
 export class ToolsGetter {
   private static readonly CMakeDefaultVersion = 'latest';
   private static readonly NinjaDefaultVersion = 'latest';
-  private static readonly LocalCacheName = "cmakeninja";
+  // Namespace of the cache key. It must be changed whenever the content of a cache entry,
+  // or the way its key is computed, changes in a way that makes the existing entries
+  // unsuitable for reuse.
+  private static readonly CacheKeySchema = "get-cmake-sha256-verified-v1";
+  // The name under which the tool-cache indexes the local entries. It carries the schema
+  // so that the entries of this schema live in a directory tree of their own: the ones
+  // stored by the releases predating the checksum verification, which hold an archive
+  // nobody ever verified, are indexed under the previous name and can never be found.
+  private static readonly LocalCacheName = `cmakeninja-${ToolsGetter.CacheKeySchema}`;
+  // Number of hexadecimal characters of the digest used to name the installation
+  // directory. 128 bits are collision resistant, while keeping the path short enough not
+  // to contribute to the path length limit of Windows.
+  private static readonly OutputPathDigestLength = 32;
   private requestedCMakeVersion: string;
   private requestedNinjaVersion: string;
 
@@ -148,19 +161,32 @@ export class ToolsGetter {
   }
 
   private async get(cmakePackage: shared.PackageInfo, ninjaPackage: shared.PackageInfo): Promise<void> {
-    let hashedKey: number, outPath: string;
+    let cacheKey: string, keyDigest: string, outPath: string;
     let cloudCacheHitKey: string | undefined = undefined;
     let localCacheHit = false;
     let localPath: string | undefined = undefined;
 
+    // A cache hit skips downloadTools() altogether, hence the verification it performs
+    // would be bypassed: refuse an unverifiable package before any cache is looked up.
+    const cmakeSha256 = ToolsGetter.getExpectedSha256(cmakePackage, 'CMake');
+    const ninjaSha256 = ToolsGetter.getExpectedSha256(ninjaPackage, 'Ninja');
+
     try {
-      core.startGroup(`Computing cache key from the downloads' URLs`);
-      // Get an unique output directory name from the URL.
-      const inputHash = `${cmakePackage.url}${ninjaPackage.url}`;
-      hashedKey = hashCode(inputHash);
-      core.info(`Cache key: '${hashedKey}'.`);
-      core.debug(`hash('${inputHash}') === '${hashedKey}'`);
-      outPath = this.getOutputPath(hashedKey.toString());
+      core.startGroup(`Computing cache key from the downloads' URLs and checksums`);
+      // Get an unique key from the URLs and the expected checksums. The schema is kept
+      // verbatim in the key and the rest is a collision resistant digest, hence the keys
+      // of this schema form a namespace of their own: the entries stored by the releases
+      // predating the checksum verification - which may hold an archive nobody ever
+      // verified - can never be hit, whatever key they were stored under. The separators
+      // keep the fields unambiguous, so that distinct inputs cannot produce the same
+      // digest.
+      const keyInput =
+        `${ToolsGetter.CacheKeySchema}|${cmakePackage.url}|${cmakeSha256}|${ninjaPackage.url}|${ninjaSha256}`;
+      keyDigest = crypto.createHash('sha256').update(keyInput).digest('hex');
+      cacheKey = `${ToolsGetter.CacheKeySchema}-${keyDigest}`;
+      core.info(`Cache key: '${cacheKey}'.`);
+      core.debug(`sha256('${keyInput}') === '${keyDigest}'`);
+      outPath = this.getOutputPath(keyDigest.slice(0, ToolsGetter.OutputPathDigestLength));
       core.info(`Local install root: '${outPath}''.`)
     } finally {
       core.endGroup();
@@ -168,9 +194,9 @@ export class ToolsGetter {
 
     if (this.useLocalCache) {
       try {
-        core.startGroup(`Restoring from local GitHub runner cache using key '${hashedKey}'`);
+        core.startGroup(`Restoring from local GitHub runner cache using key '${cacheKey}'`);
         localPath = tools.find(ToolsGetter.LocalCacheName,
-          ToolsGetter.hashToFakeSemver(hashedKey), process.platform);
+          ToolsGetter.digestToVersion(keyDigest), process.platform);
         // Silly tool-cache API does return an empty string in case of cache miss.
         localCacheHit = localPath ? true : false;
         core.info(localCacheHit ? "Local cache hit." : "Local cache miss.");
@@ -182,8 +208,8 @@ export class ToolsGetter {
     if (!localCacheHit) {
       if (this.useCloudCache) {
         try {
-          core.startGroup(`Restoring from GitHub cloud cache using key '${hashedKey}' into '${outPath}'`);
-          cloudCacheHitKey = await this.restoreCache(outPath, hashedKey);
+          core.startGroup(`Restoring from GitHub cloud cache using key '${cacheKey}' into '${outPath}'`);
+          cloudCacheHitKey = await this.restoreCache(outPath, cacheKey);
           core.info(cloudCacheHitKey === undefined ? "Cloud cache miss." : "Cloud cache hit.");
         } finally {
           core.endGroup();
@@ -205,13 +231,13 @@ export class ToolsGetter {
 
     if (this.useCloudCache && cloudCacheHitKey === undefined) {
       try {
-        core.startGroup(`Saving to GitHub cloud cache using key '${hashedKey}'`);
+        core.startGroup(`Saving to GitHub cloud cache using key '${cacheKey}'`);
         if (localCacheHit) {
           core.info("Skipping saving to cloud cache since there was local cache hit for the computed key.");
         }
         else if (cloudCacheHitKey === undefined) {
-          await this.saveCache([outPath], hashedKey);
-          core.info(`Saved '${outPath}' to the GitHub cache service with key '${hashedKey}'.`);
+          await this.saveCache([outPath], cacheKey);
+          core.info(`Saved '${outPath}' to the GitHub cache service with key '${cacheKey}'.`);
         } else {
           core.info("Skipping saving to cloud cache since there was a cache hit for the computed key.");
         }
@@ -222,10 +248,10 @@ export class ToolsGetter {
 
     if (this.useLocalCache && !localCacheHit && localPath) {
       try {
-        core.startGroup(`Saving to local cache using key '${hashedKey}' from '${outPath}'`);
+        core.startGroup(`Saving to local cache using key '${cacheKey}' from '${outPath}'`);
         await tools.cacheDir(localPath, ToolsGetter.LocalCacheName,
-          ToolsGetter.hashToFakeSemver(hashedKey), process.platform);
-        core.info(`Saved '${outPath}' to the local GitHub runner cache with key '${hashedKey}'.`);
+          ToolsGetter.digestToVersion(keyDigest), process.platform);
+        core.info(`Saved '${outPath}' to the local GitHub runner cache with key '${cacheKey}'.`);
       } finally {
         core.endGroup();
       }
@@ -304,9 +330,9 @@ export class ToolsGetter {
     return path.join(process.env.RUNNER_TEMP, subDir);;
   }
 
-  private async saveCache(paths: string[], key: number): Promise<number | undefined> {
+  private async saveCache(paths: string[], key: string): Promise<number | undefined> {
     try {
-      return await cache.saveCache(paths, key.toString());
+      return await cache.saveCache(paths, key);
     }
     catch (error: any) {
       if (error.name === cache.ValidationError.name) {
@@ -319,8 +345,8 @@ export class ToolsGetter {
     }
   }
 
-  private restoreCache(outPath: string, key: number): Promise<string | undefined> {
-    return cache.restoreCache([outPath], key.toString());
+  private restoreCache(outPath: string, key: string): Promise<string | undefined> {
+    return cache.restoreCache([outPath], key);
   }
 
   private async extract(archiveSuffix: string, downloaded: string, outputPath: string): Promise<string> {
@@ -343,16 +369,53 @@ export class ToolsGetter {
     return downloaded;
   }
 
+  private async verifyChecksum(filePath: string, expectedSha256: string, toolName: string, url: string): Promise<void> {
+    const hash = await new Promise<string>((resolve, reject) => {
+      const hasher = crypto.createHash('sha256');
+      const stream = fsSync.createReadStream(filePath);
+      stream.on('data', (chunk) => hasher.update(chunk));
+      stream.on('end', () => resolve(hasher.digest('hex')));
+      stream.on('error', reject);
+    });
+    if (hash.toLowerCase() !== expectedSha256.toLowerCase()) {
+      // Do not leave an archive that failed verification on disk.
+      await fs.rm(filePath, { force: true });
+      throw new Error(
+        `SHA-256 checksum mismatch for ${toolName} downloaded from '${url}'!\n` +
+        `  Expected: ${expectedSha256.toLowerCase()}\n` +
+        `  Got:      ${hash}`
+      );
+    }
+    core.info(`SHA-256 checksum verified for ${toolName}.`);
+  }
+
+  /**
+   * Return the SHA-256 digest the archive of 'pkg' must be verified against.
+   * @throws when the catalog does not carry one: an archive whose integrity cannot be
+   * verified must never be installed.
+   */
+  private static getExpectedSha256(pkg: shared.PackageInfo, toolName: string): string {
+    if (!pkg.sha256) {
+      throw new Error(`SHA-256 checksum not available for ${toolName} at '${pkg.url}'; refusing to install an unverifiable archive.`);
+    }
+    return pkg.sha256;
+  }
+
   private async downloadTools(
     cmakePackage: shared.PackageInfo, ninjaPackage: shared.PackageInfo,
     outputPath: string): Promise<void> {
     await core.group("Downloading and extracting CMake", async () => {
+      // Bail out before spending bandwidth on an archive that could not be verified anyway.
+      const expectedSha256 = ToolsGetter.getExpectedSha256(cmakePackage, 'CMake');
       const downloaded = await tools.downloadTool(cmakePackage.url);
+      await this.verifyChecksum(downloaded, expectedSha256, 'cmake', cmakePackage.url);
       await this.extract(cmakePackage.dropSuffix, downloaded, outputPath);
     });
 
     await core.group("Downloading and extracting Ninja", async () => {
+      const expectedSha256 = ToolsGetter.getExpectedSha256(ninjaPackage, 'Ninja');
       const downloaded = await tools.downloadTool(ninjaPackage.url);
+      await this.verifyChecksum(downloaded, expectedSha256, 'ninja', ninjaPackage.url);
       await this.extract(ToolsGetter.getArchiveExtension(ninjaPackage.fileName), downloaded, outputPath);
     });
   }
@@ -371,11 +434,15 @@ export class ToolsGetter {
     }
   }
 
-  private static hashToFakeSemver(hashedKey: number): string {
-    // Since the key may be negative and needs to drop the sign to work good as 
-    // a major version number, let's ensure an unique version by switching the patch part.
-    const minorPatch = hashedKey > 0 ? ".0.0" : ".0.1";
-    return `${Math.abs(hashedKey)}${minorPatch}`;
+  private static digestToVersion(keyDigest: string): string {
+    // The tool-cache indexes a local entry by a semver version, hence the digest cannot be
+    // used as it is. Three distinct 32 bit slices of it are encoded as the numeric
+    // components, which keeps 96 bits of it: enough for distinct inputs never to share an
+    // entry. A truncation to a single 32 bit number, as done before the checksums were
+    // verified, would not be.
+    const slice = (index: number): number =>
+      parseInt(keyDigest.slice(index * 8, (index * 8) + 8), 16);
+    return `${slice(0)}.${slice(1)}.${slice(2)}`;
   }
 }
 
