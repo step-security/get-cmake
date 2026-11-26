@@ -16,6 +16,8 @@ on:
       token:
         required: true
 
+permissions: {}
+
 jobs:
   test_user_provided_versions:
     name: '${{ matrix.os }}: functional test (${{ matrix.versions }})'
